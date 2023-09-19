@@ -127,6 +127,10 @@ function validateImageName(event: any): void {
     imageNameInvalid = undefined;
   }
 }
+
+function requestFocus(element: HTMLInputElement) {
+  element.focus();
+}
 </script>
 
 <FormPage title="Pull Image From a Registry">
@@ -149,14 +153,20 @@ function validateImageName(event: any): void {
             id="imageName"
             class="w-full p-2 outline-none text-sm bg-charcoal-600 rounded-sm text-gray-700 placeholder-gray-700"
             type="text"
-            name="serverUrl"
+            name="imageName"
             disabled="{pullFinished || pullInProgress}"
             on:input="{event => validateImageName(event)}"
+            on:keypress="{event => {
+              if (event.key === 'Enter') {
+                pullImage();
+              }
+            }}"
             bind:value="{imageToPull}"
             aria-invalid="{imageNameInvalid !== ''}"
             placeholder="Image name"
             aria-label="imageName"
-            required />
+            required
+            use:requestFocus />
           {#if imageNameInvalid}
             <ErrorMessage error="{imageNameInvalid}" />
           {/if}
@@ -167,7 +177,7 @@ function validateImageName(event: any): void {
                 <label for="providerChoice">Container Engine:</label>
                 <select
                   id="providerChoice"
-                  class="w-auto border text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 bg-gray-900 border-gray-900 placeholder-gray-700 text-white"
+                  class="w-auto border text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-2.5 bg-gray-900 border-gray-900 placeholder-gray-700 text-white"
                   name="providerChoice"
                   bind:value="{selectedProviderConnection}">
                   {#each providerConnections as providerConnection}

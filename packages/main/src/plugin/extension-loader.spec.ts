@@ -22,7 +22,7 @@ import { beforeAll, beforeEach, test, expect, vi, describe } from 'vitest';
 import type { CommandRegistry } from './command-registry.js';
 import type { ConfigurationRegistry } from './configuration-registry.js';
 import type { ContainerProviderRegistry } from './container-registry.js';
-import type { AnalyzedExtension } from './extension-loader.js';
+import type { ActivatedExtension, AnalyzedExtension } from './extension-loader.js';
 import { ExtensionLoader } from './extension-loader.js';
 import type { FilesystemMonitoring } from './filesystem-monitoring.js';
 import type { ImageRegistry } from './image-registry.js';
@@ -48,6 +48,7 @@ import type { CustomPickRegistry } from './custompick/custompick-registry.js';
 import type { ViewRegistry } from './view-registry.js';
 import { Context } from './context/context.js';
 import type { OnboardingRegistry } from './onboarding-registry.js';
+import { Exec } from './util/exec.js';
 
 class TestExtensionLoader extends ExtensionLoader {
   public async setupScanningDirectory(): Promise<void> {
@@ -72,6 +73,14 @@ class TestExtensionLoader extends ExtensionLoader {
 
   doRequire(module: string): NodeRequire {
     return super.doRequire(module);
+  }
+
+  setActivatedExtension(extensionId: string, activatedExtension: ActivatedExtension): void {
+    this.activatedExtensions.set(extensionId, activatedExtension);
+  }
+
+  setAnalyzedExtension(extensionId: string, analyzedExtension: AnalyzedExtension): void {
+    this.analyzedExtensions.set(extensionId, analyzedExtension);
   }
 }
 
@@ -133,6 +142,8 @@ const directories = {
   getExtensionsStorageDirectory: () => '/fake-extensions-storage-directory',
 } as unknown as Directories;
 
+const exec = new Exec(proxy);
+
 /* eslint-disable @typescript-eslint/no-empty-function */
 beforeAll(() => {
   extensionLoader = new TestExtensionLoader(
@@ -160,6 +171,7 @@ beforeAll(() => {
     viewRegistry,
     context,
     directories,
+    exec,
   );
 });
 
@@ -289,6 +301,8 @@ test('Verify extension error leads to failed state', async () => {
       mainPath: '',
       removable: false,
       manifest: {},
+      subscriptions: [],
+      dispose: vi.fn(),
     },
     {
       activate: () => {
@@ -318,6 +332,8 @@ test('Verify extension activate with a long timeout is flagged as error', async 
       mainPath: '',
       removable: false,
       manifest: {},
+      subscriptions: [],
+      dispose: vi.fn(),
     },
     {
       activate: () => {
@@ -722,4 +738,25 @@ describe('Removing extension by user', async () => {
     expect(extensionLoader.removeExtension).toBeCalledWith(ExtID);
     expect(telemetry.track).toBeCalledWith('removeExtension', { extensionId: ExtID, error: RemoveError });
   });
+});
+
+test('check dispose when deactivating', async () => {
+  vi.mock('node:fs');
+
+  const extensionId = 'fooPublisher.fooName';
+  extensionLoader.setActivatedExtension(extensionId, {
+    id: extensionId,
+  } as ActivatedExtension);
+
+  const analyzedExtension: AnalyzedExtension = {
+    id: extensionId,
+    dispose: vi.fn(),
+  } as unknown as AnalyzedExtension;
+  extensionLoader.setAnalyzedExtension(extensionId, analyzedExtension);
+
+  // should have call the dispose method
+  await extensionLoader.deactivateExtension(extensionId);
+  expect(analyzedExtension.dispose).toBeCalled();
+
+  expect(telemetry.track).toBeCalledWith('deactivateExtension', { extensionId });
 });

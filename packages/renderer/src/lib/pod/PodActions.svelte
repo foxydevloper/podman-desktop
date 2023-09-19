@@ -13,12 +13,15 @@ import { router } from 'tinro';
 import ListItemButtonIcon from '../ui/ListItemButtonIcon.svelte';
 import DropdownMenu from '../ui/DropdownMenu.svelte';
 import FlatMenu from '../ui/FlatMenu.svelte';
+import type { Menu } from '../../../../main/src/plugin/menu-registry';
+import ContributionActions from '/@/lib/actions/ContributionActions.svelte';
 import { onMount } from 'svelte';
 import { ContainerUtils } from '../container/container-utils';
 
 export let pod: PodInfoUI;
 export let dropdownMenu = false;
 export let detailed = false;
+export let contributions: Menu[] = [];
 
 export let inProgressCallback: (inProgress: boolean, state?: string) => void = () => {};
 export let errorCallback: (erroMessage: string) => void = () => {};
@@ -161,4 +164,9 @@ if (dropdownMenu) {
       detailed="{detailed}"
       icon="{faArrowsRotate}" />
   {/if}
+  <ContributionActions
+    args="{[pod]}"
+    dropdownMenu="{dropdownMenu}"
+    contributions="{contributions}"
+    onError="{errorCallback}" />
 </svelte:component>

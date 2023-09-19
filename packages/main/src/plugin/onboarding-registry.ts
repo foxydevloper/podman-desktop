@@ -23,15 +23,20 @@ import type { AnalyzedExtension } from './extension-loader.js';
 import type { ConfigurationRegistry } from './configuration-registry.js';
 import { getBase64Image } from '../util.js';
 import type { Context } from './context/context.js';
+import { Disposable } from './types/disposable.js';
 
 export class OnboardingRegistry {
   private onboardingInfos: Map<string, OnboardingInfo> = new Map<string, OnboardingInfo>();
 
   constructor(private configurationRegistry: ConfigurationRegistry, private context: Context) {}
 
-  registerOnboarding(extension: AnalyzedExtension, onboarding: Onboarding): void {
+  registerOnboarding(extension: AnalyzedExtension, onboarding: Onboarding): Disposable {
     const onInfo = this.createOnboardingInfo(extension, onboarding);
     this.onboardingInfos.set(extension.id, onInfo);
+
+    return Disposable.create(() => {
+      this.unregisterOnboarding(extension.id);
+    });
   }
 
   unregisterOnboarding(extension: string): void {

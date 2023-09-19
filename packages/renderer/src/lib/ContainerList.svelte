@@ -36,6 +36,7 @@ import { CONTAINER_LIST_VIEW } from './view/views';
 import type { ViewInfoUI } from '../../../main/src/plugin/api/view-info';
 import type { ContextUI } from './context/context';
 import Button from './ui/Button.svelte';
+import { type Menu, MenuContext } from '../../../main/src/plugin/menu-registry';
 
 const containerUtils = new ContainerUtils();
 let openChoiceModal = false;
@@ -220,6 +221,8 @@ let contextsUnsubscribe: Unsubscriber;
 let podUnsubscribe: Unsubscriber;
 let viewsUnsubscribe: Unsubscriber;
 let pods: PodInfo[];
+let contributedMenus: Menu[];
+
 onMount(async () => {
   // grab previous groups
   containerGroups = get(containerGroupsInfo);
@@ -245,6 +248,8 @@ onMount(async () => {
   podUnsubscribe = podsInfos.subscribe(podInfos => {
     pods = podInfos;
   });
+
+  contributedMenus = await window.getContributedMenus(MenuContext.DASHBOARD_CONTAINER);
 });
 
 function updateContainers(containers: ContainerInfo[], globalContext: ContextUI, viewContributions: ViewInfoUI[]) {
@@ -525,7 +530,8 @@ function errorCallback(container: ContainerInfoUI, errorMessage: string): void {
                       containers: [],
                       kind: 'podman',
                     }}"
-                    dropdownMenu="{true}" />
+                    dropdownMenu="{true}"
+                    contributions="{contributedMenus}" />
                 {/if}
                 {#if containerGroup.type === ContainerGroupInfoTypeUI.COMPOSE && containerGroup.status && containerGroup.engineId && containerGroup.engineType}
                   <ComposeActions
@@ -538,7 +544,8 @@ function errorCallback(container: ContainerInfoUI, errorMessage: string): void {
                     }}"
                     dropdownMenu="{true}"
                     inProgressCallback="{(containers, flag, state) =>
-                      composeGroupInProgressCallback(containerGroup.containers, flag, state)}" />
+                      composeGroupInProgressCallback(containerGroup.containers, flag, state)}"
+                    contributions="{contributedMenus}" />
                 {/if}
               </td>
             </tr>
@@ -618,7 +625,8 @@ function errorCallback(container: ContainerInfoUI, errorMessage: string): void {
                         errorCallback="{error => errorCallback(container, error)}"
                         inProgressCallback="{(flag, state) => inProgressCallback(container, flag, state)}"
                         container="{container}"
-                        dropdownMenu="{true}" />
+                        dropdownMenu="{true}"
+                        contributions="{contributedMenus}" />
                     </div>
                   </div>
                 </td>
@@ -644,7 +652,7 @@ function errorCallback(container: ContainerInfoUI, errorMessage: string): void {
       openChoiceModal = false;
     }}">
     <button
-      class="inline-block w-full overflow-hidden text-left transition-all transform bg-charcoal-600 z-50 h-[200px] rounded-xl shadow-xl shadow-neutral-900"
+      class="inline-block w-full overflow-hidden text-left transition-all transform bg-charcoal-600 z-50 h-[200px] rounded-xl shadow-xl shadow-charcoal-900"
       on:keydown="{keydownChoice}">
       <div class="flex items-center justify-between bg-black px-5 py-4 border-b-2 border-violet-700">
         <h1 class="text-xl font-bold">Create a new container</h1>

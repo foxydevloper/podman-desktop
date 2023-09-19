@@ -17,12 +17,12 @@
  ***********************************************************************/
 
 import type { Locator, Page } from 'playwright';
-import { PodmanDesktopPage } from './base-page';
+import { BasePage } from './base-page';
 import { ContainersPage } from './containers-page';
 import { waitUntil, waitWhile } from '../../utility/wait';
 import { ContainerState } from '../core/states';
 
-export class ContainerDetailsPage extends PodmanDesktopPage {
+export class ContainerDetailsPage extends BasePage {
   readonly labelName: Locator;
   readonly heading: Locator;
   readonly closeLink: Locator;
@@ -45,7 +45,7 @@ export class ContainerDetailsPage extends PodmanDesktopPage {
   }
 
   async activateTab(tabName: string) {
-    const tabItem = this.page.getByRole('link', { name: tabName });
+    const tabItem = this.page.getByRole('link', { name: tabName, exact: true });
     await tabItem.waitFor({ state: 'visible', timeout: 2000 });
     await tabItem.click();
   }

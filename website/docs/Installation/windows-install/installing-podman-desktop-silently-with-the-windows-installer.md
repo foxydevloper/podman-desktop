@@ -1,6 +1,6 @@
 ---
 sidebar_position: 2
-title: Installing Podman Desktop silently
+title: Installing silently
 description: Installing Podman Desktop silently on Windows with the installer
 tags: [podman-desktop, installing, windows]
 keywords: [podman desktop, containers, podman, installing, installation, windows]
@@ -22,4 +22,4 @@ Consider using this method to install the Podman Desktop Windows installer witho
 #### Next steps
 
 - [Installing Podman](installing-podman-with-podman-desktop)
-- [Getting Started with Podman Desktop](/docs/getting-started/getting-started)
+- [Getting Started with Podman Desktop](/docs/getting-started)

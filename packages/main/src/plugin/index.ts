@@ -121,6 +121,7 @@ import { Context } from './context/context.js';
 import { OnboardingRegistry } from './onboarding-registry.js';
 import type { OnboardingInfo, OnboardingStatus } from './api/onboarding.js';
 import { OnboardingUtils } from './onboarding/onboarding-utils.js';
+import { Exec } from './util/exec.js';
 
 type LogType = 'log' | 'warn' | 'trace' | 'debug' | 'error';
 
@@ -370,6 +371,8 @@ export class PluginSystem {
     const proxy = new Proxy(configurationRegistry);
     await proxy.init();
 
+    const exec = new Exec(proxy);
+
     const commandRegistry = new CommandRegistry(telemetry);
     const menuRegistry = new MenuRegistry(commandRegistry);
     const certificates = new Certificates();
@@ -397,8 +400,8 @@ export class PluginSystem {
       await trayIconColor.init();
     }
 
-    const autoStartConfiguration = new AutostartEngine(configurationRegistry, providerRegistry);
-    await autoStartConfiguration.init();
+    const autoStartEngine = new AutostartEngine(configurationRegistry, providerRegistry);
+    providerRegistry.registerAutostartEngine(autoStartEngine);
 
     providerRegistry.addProviderListener((name: string, providerInfo: ProviderInfo) => {
       if (name === 'provider:update-status') {
@@ -685,6 +688,7 @@ export class PluginSystem {
       viewRegistry,
       context,
       directories,
+      exec,
     );
     await this.extensionLoader.init();
 
@@ -698,7 +702,7 @@ export class PluginSystem {
     // setup security restrictions on links
     await this.setupSecurityRestrictionsOnLinks(messageBox);
 
-    const contributionManager = new ContributionManager(apiSender, directories, containerProviderRegistry);
+    const contributionManager = new ContributionManager(apiSender, directories, containerProviderRegistry, exec);
     this.ipcHandle('container-provider-registry:listContainers', async (): Promise<ContainerInfo[]> => {
       return containerProviderRegistry.listContainers();
     });
@@ -955,7 +959,7 @@ export class PluginSystem {
 
     this.ipcHandle(
       'container-provider-registry:createAndStartContainer',
-      async (_listener, engine: string, options: ContainerCreateOptions): Promise<void> => {
+      async (_listener, engine: string, options: ContainerCreateOptions): Promise<{ id: string }> => {
         return containerProviderRegistry.createAndStartContainer(engine, options);
       },
     );
@@ -1031,6 +1035,42 @@ export class PluginSystem {
       'container-provider-registry:shellInContainerSend',
       async (_listener, onDataId: number, content: string): Promise<void> => {
         const callback = containerProviderRegistryShellInContainerSendCallback.get(onDataId);
+        if (callback) {
+          callback(content);
+        }
+      },
+    );
+
+    const containerProviderRegistryAttachContainerSendCallback = new Map<number, (param: string) => void>();
+    this.ipcHandle(
+      'container-provider-registry:attachContainer',
+      async (_listener, engine: string, containerId: string, onDataId: number): Promise<number> => {
+        // provide the data content to the remote side
+        const attachContainerInvocation = await containerProviderRegistry.attachContainer(
+          engine,
+          containerId,
+          (content: string) => {
+            this.getWebContentsSender().send('container-provider-registry:attachContainer-onData', onDataId, content);
+          },
+          (error: string) => {
+            this.getWebContentsSender().send('container-provider-registry:attachContainer-onError', onDataId, error);
+          },
+          () => {
+            this.getWebContentsSender().send('container-provider-registry:attachContainer-onEnd', onDataId);
+            // delete the callback
+            containerProviderRegistryAttachContainerSendCallback.delete(onDataId);
+          },
+        );
+        // store the callback
+        containerProviderRegistryAttachContainerSendCallback.set(onDataId, attachContainerInvocation);
+        return onDataId;
+      },
+    );
+
+    this.ipcHandle(
+      'container-provider-registry:attachContainerSend',
+      async (_listener, onDataId: number, content: string): Promise<void> => {
+        const callback = containerProviderRegistryAttachContainerSendCallback.get(onDataId);
         if (callback) {
           callback(content);
         }
@@ -1830,7 +1870,7 @@ export class PluginSystem {
       this.markAsExtensionsStarted();
     }
     extensionsUpdater.init().catch((err: unknown) => console.error('Unable to perform extension updates', err));
-    autoStartConfiguration.start().catch((err: unknown) => console.error('Unable to perform autostart', err));
+    autoStartEngine.start().catch((err: unknown) => console.error('Unable to perform autostart', err));
     return this.extensionLoader;
   }
 

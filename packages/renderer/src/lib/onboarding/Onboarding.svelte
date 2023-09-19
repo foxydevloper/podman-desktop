@@ -21,6 +21,8 @@ import {
 import { lastPage } from '/@/stores/breadcrumb';
 import Button from '../ui/Button.svelte';
 import Link from '../ui/Link.svelte';
+import OnboardingComponent from './OnboardingComponent.svelte';
+import Spinner from '../ui/Spinner.svelte';
 
 interface ActiveOnboardingStep {
   onboarding: OnboardingInfo;
@@ -40,7 +42,6 @@ let displayResetSetup = false;
 
 let executedCommands: string[] = [];
 
-let firstStart = true;
 /*
 $: enableNextButton = false;*/
 let onboardingUnsubscribe: Unsubscriber;
@@ -50,35 +51,19 @@ onMount(async () => {
   onboardingUnsubscribe = onboardingList.subscribe(onboardingItems => {
     if (!onboardings) {
       onboardings = onboardingItems.filter(o => extensionIds.find(extensionId => o.extension === extensionId));
-      if (!started) {
-        startOnboarding().then(isStartedByMe => {
-          if (isStartedByMe) {
-            assertStepCompleted().finally(() => (firstStart = false));
-          }
-        });
-      }
+      startOnboarding().catch((err: unknown) => console.warn(String(err)));
     }
   });
 
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
-  contextsUnsubscribe = context.subscribe(async value => {
+  contextsUnsubscribe = context.subscribe(value => {
     globalContext = value;
-    if (!started) {
-      const isStartedByMe = await startOnboarding();
-      if (isStartedByMe) {
-        firstStart = false;
-        await assertStepCompleted();
-        return;
-      }
-    }
-    if (!firstStart) {
-      await assertStepCompleted();
-    }
+    startOnboarding().catch((err: unknown) => console.warn(String(err)));
   });
 });
 
 let started = false;
-async function startOnboarding(): Promise<boolean> {
+async function startOnboarding(): Promise<void> {
   if (!started && globalContext && onboardings) {
     started = true;
     if (isOnboardingsSetupCompleted(onboardings)) {
@@ -87,9 +72,7 @@ async function startOnboarding(): Promise<boolean> {
     } else {
       await restartSetup();
     }
-    return true;
   }
-  return false;
 }
 
 onDestroy(() => {
@@ -134,7 +117,6 @@ async function setActiveStep() {
       }
     }
   }
-
   // if it reaches this point it means that the onboarding is fully completed and the user is redirected to the dashboard
   router.goto($lastPage.path);
 }
@@ -282,7 +264,7 @@ async function cleanContext() {
 
 {#if activeStep}
   <div class="flex flex-col bg-[#36373a] h-full">
-    <div class="flex flex-row justify-between mt-5 mx-5 mb-20">
+    <div class="flex flex-row justify-between mt-5 mx-5 mb-5">
       <div class="flex flew-row">
         {#if activeStep.onboarding.media}
           <img
@@ -304,62 +286,62 @@ async function cleanContext() {
         </div>
       </div>
     </div>
-    <div class="w-[450px] flex flex-col mx-auto">
-      {#if activeStep.step.media}
-        <div class="mx-auto">
-          <img
-            class="w-24 h-24 object-contain"
-            alt="{activeStep.step.media.altText}"
-            src="{activeStep.step.media.path}" />
-        </div>
-      {:else if activeStep.onboarding.media}
-        <div class="mx-auto">
-          <img
-            class="w-24 h-24 object-contain"
-            alt="{activeStep.onboarding.media.altText}"
-            src="{activeStep.onboarding.media.path}" />
-        </div>
-      {/if}
-      <div class="flex flex-row mx-auto">
-        {#if executing}
-          <div class="mt-1 mr-6">
-            <i class="pf-c-button__progress text-purple-400">
-              <span class="pf-c-spinner pf-m-md" role="progressbar">
-                <span class="pf-c-spinner__clipper"></span>
-                <span class="pf-c-spinner__lead-ball"></span>
-                <span class="pf-c-spinner__tail-ball"></span>
-              </span>
-            </i>
+    {#if activeStep.step.component}
+      <div class="min-w-[700px] mx-auto overflow-y-auto" aria-label="onboarding component">
+        <OnboardingComponent component="{activeStep.step.component}" extensionId="{activeStep.onboarding.extension}" />
+      </div>
+    {:else}
+      <div class="w-[450px] flex flex-col mt-16 mx-auto" aria-label="step body">
+        {#if activeStep.step.media}
+          <div class="mx-auto">
+            <img
+              class="w-24 h-24 object-contain"
+              alt="{activeStep.step.media.altText}"
+              src="{activeStep.step.media.path}" />
+          </div>
+        {:else if activeStep.onboarding.media}
+          <div class="mx-auto">
+            <img
+              class="w-24 h-24 object-contain"
+              alt="{activeStep.onboarding.media.altText}"
+              src="{activeStep.onboarding.media.path}" />
           </div>
         {/if}
-        <div class="text-lg text-white">{activeStep.step.title}</div>
+        <div class="flex flex-row mx-auto">
+          {#if executing}
+            <div class="mt-1 mr-6">
+              <Spinner />
+            </div>
+          {/if}
+          <div class="text-lg text-white">{activeStep.step.title}</div>
+        </div>
+        {#if activeStep.step.description}
+          <div class="text-sm text-white mx-auto">{activeStep.step.description}</div>
+        {/if}
       </div>
-      {#if activeStep.step.description}
-        <div class="text-sm text-white mx-auto">{activeStep.step.description}</div>
-      {/if}
-    </div>
 
-    {#if activeStep.step.state === 'failed'}
-      <div class="mx-auto mt-4">
-        <Button on:click="{() => restartSetup()}">Try again</Button>
+      {#if activeStep.step.state === 'failed'}
+        <div class="mx-auto mt-4">
+          <Button on:click="{() => restartSetup()}">Try again</Button>
+        </div>
+      {/if}
+
+      <div class="flex flex-col mx-auto">
+        {#if activeStep.step.content}
+          {#each activeStep.step.content as row}
+            <div class="flex flex-row mx-auto">
+              {#each row as item}
+                <OnboardingItem
+                  extension="{activeStep.onboarding.extension}"
+                  item="{item}"
+                  getContext="{() => globalContext}"
+                  inProgressCommandExecution="{inProgressCommandExecution}" />
+              {/each}
+            </div>
+          {/each}
+        {/if}
       </div>
     {/if}
-
-    <div class="flex flex-col mx-auto">
-      {#if activeStep.step.content}
-        {#each activeStep.step.content as row}
-          <div class="flex flex-row mx-auto">
-            {#each row as item}
-              <OnboardingItem
-                extension="{activeStep.onboarding.extension}"
-                item="{item}"
-                getContext="{() => globalContext}"
-                inProgressCommandExecution="{inProgressCommandExecution}" />
-            {/each}
-          </div>
-        {/each}
-      {/if}
-    </div>
 
     {#if !activeStep.step.completionEvents || activeStep.step.completionEvents.length === 0}
       <div class="grow"></div>
@@ -373,14 +355,11 @@ async function cleanContext() {
         </div>
       {/if}
       <div class="flex flex-row-reverse p-6 bg-charcoal-700">
-        <button
-          class="py-1.5 px-5 rounded-md text-sm"
-          class:bg-purple-700="{activeStep.step.state !== 'failed'}"
-          class:bg-charcoal-50="{activeStep.step.state === 'failed'}"
-          disabled="{activeStep.step.state === 'failed'}"
-          on:click="{() => next()}">Next</button>
-        <button class="bg-purple-700 py-1.5 px-5 mr-2 rounded-md text-sm" on:click="{() => setDisplayCancelSetup(true)}"
-          >Cancel</button>
+        <Button type="primary" disabled="{activeStep.step.state === 'failed'}" on:click="{() => next()}">Next</Button>
+        {#if activeStep.step.state !== 'completed'}
+          <Button type="secondary" aria-label="Cancel setup" class="mr-2" on:click="{() => setDisplayCancelSetup(true)}"
+            >Cancel</Button>
+        {/if}
       </div>
     {/if}
   </div>
@@ -399,9 +378,8 @@ async function cleanContext() {
       </div>
 
       <div class="px-5 py-5 mt-2 flex flex-row w-full justify-end space-x-5">
-        <button aria-label="Cancel" class="text-xs hover:underline" on:click="{() => setDisplayCancelSetup(false)}"
-          >Cancel</button>
-        <button class="bg-purple-700 py-1.5 px-5 mr-2 rounded-md text-xs" on:click="{() => cancelSetup()}">Ok</button>
+        <Button type="secondary" aria-label="Cancel" on:click="{() => setDisplayCancelSetup(false)}">Cancel</Button>
+        <Button type="primary" class="mr-2" on:click="{() => cancelSetup()}">Ok</Button>
       </div>
     </div>
   </div>
@@ -420,14 +398,14 @@ async function cleanContext() {
       </div>
 
       <div class="px-5 py-5 mt-2 flex flex-row w-full justify-end space-x-5">
-        <button
+        <Button
+          type="secondary"
           aria-label="Cancel"
-          class="text-xs hover:underline"
           on:click="{() => {
             setDisplayResetSetup(false);
             cancelSetup();
-          }}">No</button>
-        <button class="bg-purple-700 py-1.5 px-5 mr-2 rounded-md text-xs" on:click="{() => restartSetup()}">Yes</button>
+          }}">No</Button>
+        <Button type="primary" class="mr-2" on:click="{() => restartSetup()}">Yes</Button>
       </div>
     </div>
   </div>
