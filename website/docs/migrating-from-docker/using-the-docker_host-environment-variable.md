@@ -29,7 +29,7 @@ Consider using the `DOCKER_HOST` environment variable to migrate transparently f
      <TabItem value="win" label="Windows">
 
    ```shell-session
-   $ podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}'
+   $ podman machine inspect --format '{{.ConnectionInfo.PodmanPipe.Path}}'
    ```
 
      </TabItem>
